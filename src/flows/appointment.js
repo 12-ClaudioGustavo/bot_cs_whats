@@ -228,6 +228,7 @@ async function processAppointmentFlow(input, state, phone) {
       } else {
         // Notifica admin sobre novo agendamento
         notifyNewAppointment({
+          id: result.appointment.id,
           phone,
           clientName: data.clientName,
           serviceName: data.serviceName,

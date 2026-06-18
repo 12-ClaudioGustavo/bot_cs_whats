@@ -4,6 +4,8 @@ const { isMenuCommand, extractPhone } = require('../utils/messageFormatter');
 const { upsertClient, getClientByPhone } = require('../services/clientService');
 const { saveMessage } = require('../services/conversationService');
 const { notifyNewClient, notifyHumanRequest, notifySupportRequest } = require('../services/notificationService');
+const { getSupabase } = require('../services/supabase');
+const { formatJid } = require('../utils/messageFormatter');
 const config = require('../config');
 const logger = require('../utils/logger');
 
@@ -41,6 +43,13 @@ async function handleMessage(sock, message) {
 
     // Salva mensagem no histórico
     await saveMessage(phone, 'incoming', text, 'text', null);
+
+    // ─── COMANDOS DE ADMINISTRAÇÃO DIRETA ─────────────────────────────
+    const ADMIN_PHONE = process.env.ADMIN_PHONE || config.human.phone;
+    if (phone === ADMIN_PHONE && text.startsWith('!')) {
+      await processAdminCommand(sock, jid, text);
+      return;
+    }
 
     // Regista/actualiza cliente no banco de dados
     const clientResult = await upsertClient(phone);
@@ -351,6 +360,54 @@ function extractText(msgContent) {
     msgContent.documentMessage?.caption ||
     null
   );
+}
+
+/**
+ * Processa comandos enviados pelo administrador
+ */
+async function processAdminCommand(sock, adminJid, text) {
+  const parts = text.trim().split(' ');
+  const command = parts[0].toLowerCase();
+  const id = parts[1];
+
+  if ((command === '!aprovar' || command === '!cancelar') && id) {
+    const db = getSupabase();
+    if (!db) return;
+
+    const newStatus = command === '!aprovar' ? 'confirmed' : 'cancelled';
+
+    // 1. Atualiza no Supabase
+    const { data: appointmentData, error } = await db
+      .from('appointments')
+      .update({ status: newStatus, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error || !appointmentData) {
+      await sendMessage(sock, adminJid, `❌ Agendamento não encontrado ou erro ao actualizar: ${id}`);
+      return;
+    }
+
+    // 2. Confirma para o admin
+    const statusText = newStatus === 'confirmed' ? '✅ APROVADO' : '❌ CANCELADO';
+    await sendMessage(sock, adminJid, `Agendamento de ${appointmentData.client_name} foi ${statusText}!`);
+
+    // 3. Notifica o cliente
+    const clientJid = formatJid(appointmentData.phone);
+    let clientMsg = '';
+    
+    if (newStatus === 'confirmed') {
+      clientMsg = `✅ *AGENDAMENTO CONFIRMADO!*\n\nOlá ${appointmentData.client_name},\nO seu agendamento para o serviço de *${appointmentData.service_name}* no dia *${appointmentData.scheduled_date}* às *${appointmentData.scheduled_time}* foi confirmado com sucesso.\n\nAguardamos por si!`;
+    } else {
+      clientMsg = `❌ *AGENDAMENTO CANCELADO*\n\nOlá ${appointmentData.client_name},\nInfelizmente o seu agendamento para *${appointmentData.service_name}* no dia *${appointmentData.scheduled_date}* teve de ser cancelado. Por favor, tente remarcar para outra data ou contacte o nosso suporte.`;
+    }
+    
+    await sendMessage(sock, clientJid, clientMsg);
+    await saveMessage(appointmentData.phone, 'outgoing', clientMsg);
+  } else {
+    await sendMessage(sock, adminJid, `⚠️ Comando inválido. Use !aprovar <id> ou !cancelar <id>`);
+  }
 }
 
 module.exports = { handleMessage, sendMessage };

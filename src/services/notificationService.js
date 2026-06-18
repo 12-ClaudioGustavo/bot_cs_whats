@@ -63,7 +63,11 @@ async function notifyNewAppointment(data) {
     `📆 Data: *${data.scheduledDate}*\n` +
     `🕐 Hora: *${data.scheduledTime}*\n` +
     (data.notes ? `📝 Nota: ${data.notes}\n` : '') +
-    `\n⚡ Responda ao cliente para confirmar!`;
+    `\n⚙️ *Acções Rápidas:*\n` +
+    `Para aprovar, responda com:\n` +
+    `!aprovar ${data.id}\n\n` +
+    `Para cancelar, responda com:\n` +
+    `!cancelar ${data.id}`;
 
   await sendToAdmin(msg);
 }
