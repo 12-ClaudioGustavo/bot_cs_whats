@@ -3,10 +3,10 @@ require('dotenv').config();
 const config = {
   // Informações da Empresa
   company: {
-    name: process.env.COMPANY_NAME || 'TechSoft Solutions',
+    name: process.env.COMPANY_NAME || 'C-Space Technologies',
     phone: process.env.COMPANY_PHONE || '+244 900 000 000',
-    email: process.env.COMPANY_EMAIL || 'contato@techsoft.co.ao',
-    website: process.env.COMPANY_WEBSITE || 'https://www.techsoft.co.ao',
+    email: process.env.COMPANY_EMAIL || 'c.spacetechnologies2022@gmail.com',
+    website: process.env.COMPANY_WEBSITE || 'https://www.cspacetech.com',
     address: process.env.COMPANY_ADDRESS || 'Luanda, Angola',
   },
 

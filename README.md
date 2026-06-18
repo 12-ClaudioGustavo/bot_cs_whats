@@ -39,9 +39,9 @@ SUPABASE_URL=https://SEU_PROJETO.supabase.co
 SUPABASE_SERVICE_KEY=sua_chave_service_aqui
 
 # Informações da empresa
-COMPANY_NAME=TechSoft Solutions
-COMPANY_PHONE=+244 900 000 000
-COMPANY_EMAIL=contato@techsoft.co.ao
+COMPANY_NAME=C-Space Technologies
+COMPANY_PHONE=+244 974 911 923
+COMPANY_EMAIL=c.spacetechnologies2022@gmail.com
 ```
 
 ### 3. Configurar o Supabase
