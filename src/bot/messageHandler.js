@@ -3,6 +3,7 @@ const { getState, setState, resetState, isInactive, setHumanMode, isHumanActive 
 const { isMenuCommand, extractPhone } = require('../utils/messageFormatter');
 const { upsertClient, getClientByPhone } = require('../services/clientService');
 const { saveMessage } = require('../services/conversationService');
+const { notifyNewClient, notifyHumanRequest, notifySupportRequest } = require('../services/notificationService');
 const config = require('../config');
 const logger = require('../utils/logger');
 
@@ -42,7 +43,12 @@ async function handleMessage(sock, message) {
     await saveMessage(phone, 'incoming', text, 'text', null);
 
     // Regista/actualiza cliente no banco de dados
-    await upsertClient(phone);
+    const clientResult = await upsertClient(phone);
+
+    // Notifica admin se for novo cliente
+    if (clientResult && clientResult.total_conversations === 1) {
+      notifyNewClient(phone, clientResult.name).catch(() => {});
+    }
 
     // ─── MODO HUMANO ACTIVO ───────────────────────────────────────────
     if (isHumanActive(phone)) {
@@ -232,6 +238,9 @@ async function processFlow(sock, jid, phone, text, state) {
     if (resetFlow) resetState(phone);
     if (toHuman) {
       setHumanMode(phone, true);
+      // Notifica admin sobre pedido de suporte escalado
+      const client = await getClientByPhone(phone);
+      notifySupportRequest(phone, client?.name, data.supportOption).catch(() => {});
     }
 
     if (flowReply) {
@@ -292,6 +301,11 @@ async function routeToFlow(sock, jid, phone, route, state) {
     case 'human':
       reply = humanSupport.getHumanHandoffMessage();
       setHumanMode(phone, true);
+      // Notifica admin sobre pedido directo de atendente
+      {
+        const client = await getClientByPhone(phone);
+        notifyHumanRequest(phone, client?.name).catch(() => {});
+      }
       break;
 
     default:

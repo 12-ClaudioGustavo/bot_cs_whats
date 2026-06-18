@@ -38,10 +38,22 @@ services:
         value: "18"
       - key: BUSINESS_TIMEZONE
         value: Africa/Luanda
-      - key: HUMAN_ATTENDANT_PHONE
-        sync: false
+      - key: ADMIN_PHONE
+        value: "244949592281"
       - key: HUMAN_ATTENDANT_NAME
         value: Cláudio Gustavo
+      - key: NOTIFY_NEW_CLIENT
+        value: "true"
+      - key: NOTIFY_APPOINTMENTS
+        value: "true"
+      - key: NOTIFY_HUMAN_REQUEST
+        value: "true"
+      - key: NOTIFY_SUPPORT
+        value: "true"
+      - key: DAILY_REPORT_HOUR
+        value: "18"
+      - key: DAILY_REPORT_MINUTE
+        value: "0"
       - key: INACTIVITY_TIMEOUT_MINUTES
         value: "30"
       - key: LOG_LEVEL

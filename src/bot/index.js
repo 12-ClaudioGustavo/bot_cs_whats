@@ -61,6 +61,10 @@ if (!config.supabase.url || !config.supabase.serviceKey) {
 const { startHttpServer } = require('./httpServer');
 startHttpServer().catch(err => logger.error(`Erro no servidor HTTP: ${err.message}`));
 
+// Inicia agendador do relatório diário
+const { startDailyReportScheduler } = require('../services/notificationService');
+startDailyReportScheduler();
+
 // Inicia o bot
 connectToWhatsApp().catch(err => {
   logger.error(`Erro fatal ao iniciar o bot: ${err.message}`);

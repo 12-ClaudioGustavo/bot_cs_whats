@@ -1,4 +1,5 @@
 const { createAppointment } = require('../services/appointmentService');
+const { notifyNewAppointment } = require('../services/notificationService');
 const { getServices } = require('./catalog');
 const { isValidFutureDate, isValidTime, toSupabaseDate } = require('../utils/messageFormatter');
 const config = require('../config');
@@ -224,6 +225,16 @@ async function processAppointmentFlow(input, state, phone) {
 
       if (!result.success) {
         logger.error(`Falha ao guardar agendamento: ${result.error}`);
+      } else {
+        // Notifica admin sobre novo agendamento
+        notifyNewAppointment({
+          phone,
+          clientName: data.clientName,
+          serviceName: data.serviceName,
+          scheduledDate: data.scheduledDate,
+          scheduledTime: data.scheduledTime,
+          notes: data.notes,
+        }).catch(() => {});
       }
 
       return {
