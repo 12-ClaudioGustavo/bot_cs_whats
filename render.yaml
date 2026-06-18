@@ -1,0 +1,48 @@
+services:
+  - type: web
+    name: cspace-whatsapp-bot
+    env: node
+    region: frankfurt  # Mais próximo de Angola
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    autoDeploy: true
+
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
+      - key: COMPANY_NAME
+        value: C-Space Technologies
+      - key: COMPANY_PHONE
+        sync: false
+      - key: COMPANY_EMAIL
+        sync: false
+      - key: COMPANY_WEBSITE
+        sync: false
+      - key: COMPANY_ADDRESS
+        value: Luanda, Angola
+      - key: BUSINESS_DAYS_START
+        value: "1"
+      - key: BUSINESS_DAYS_END
+        value: "5"
+      - key: BUSINESS_HOUR_START
+        value: "8"
+      - key: BUSINESS_HOUR_END
+        value: "18"
+      - key: BUSINESS_TIMEZONE
+        value: Africa/Luanda
+      - key: HUMAN_ATTENDANT_PHONE
+        sync: false
+      - key: HUMAN_ATTENDANT_NAME
+        value: Cláudio Gustavo
+      - key: INACTIVITY_TIMEOUT_MINUTES
+        value: "30"
+      - key: LOG_LEVEL
+        value: info

@@ -57,6 +57,10 @@ if (!config.supabase.url || !config.supabase.serviceKey) {
   console.log('\n');
 }
 
+// Inicia servidor HTTP (obrigatório para Render + expõe QR Code)
+const { startHttpServer } = require('./httpServer');
+startHttpServer().catch(err => logger.error(`Erro no servidor HTTP: ${err.message}`));
+
 // Inicia o bot
 connectToWhatsApp().catch(err => {
   logger.error(`Erro fatal ao iniciar o bot: ${err.message}`);

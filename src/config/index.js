@@ -37,6 +37,7 @@ const config = {
     inactivityTimeout: parseInt(process.env.INACTIVITY_TIMEOUT_MINUTES) || 30, // minutos
     sessionPath: './sessions',
     logLevel: process.env.LOG_LEVEL || 'info',
+    port: parseInt(process.env.PORT) || 3000,
   },
 };
 
