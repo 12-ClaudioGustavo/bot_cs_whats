@@ -93,20 +93,39 @@ async function connectToWhatsApp() {
           ? lastDisconnect.error.output.statusCode
           : null;
 
-        const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
         setBotStatus('disconnected');
 
-        logger.warn(`Conexão encerrada. Código: ${statusCode}. Reconectar: ${shouldReconnect}`);
+        logger.warn(`Conexão encerrada. Código: ${statusCode}.`);
 
-        if (shouldReconnect && reconnectAttempts < MAX_RECONNECT) {
-          reconnectAttempts++;
-          const delay = Math.min(reconnectAttempts * 5000, 60000);
-          logger.info(`Tentativa de reconexão ${reconnectAttempts}/${MAX_RECONNECT} em ${delay / 1000}s...`);
-          setTimeout(connectToWhatsApp, delay);
-        } else if (statusCode === DisconnectReason.loggedOut) {
-          logger.error('Sessão encerrada. Apague os dados de sessão e reinicie.');
+        // ── Código 440: connectionReplaced ────────────────────────────
+        // Outra instância do bot tomou a mesma sessão (ex: dois processos
+        // a correr em simultâneo). Reconectar com a mesma sessão causaria
+        // loop infinito de 440. A solução é limpar a sessão e gerar novo QR.
+        if (statusCode === DisconnectReason.connectionReplaced) {
+          logger.error('⚠️  Sessão substituída por outra instância (código 440).');
+          logger.error('   Certifica-te de que só existe UMA instância do bot a correr.');
+
           if (IS_PRODUCTION) {
-            // Em produção, limpa sessão do Supabase
+            try {
+              const { getSupabase } = require('../services/supabase');
+              await getSupabase()?.from('bot_auth_state').delete().neq('key', 'never');
+              logger.info('Sessão limpa do Supabase. A reiniciar para novo QR...');
+            } catch (e) { /* ignora */ }
+            // Reinicia do zero para gerar novo QR em vez de loop
+            reconnectAttempts = 0;
+            setTimeout(connectToWhatsApp, 5000);
+          } else {
+            // Local: avisa e sai para o utilizador corrigir manualmente
+            logger.error('Encerra o outro processo e reinicia com: npm start');
+            process.exit(1);
+          }
+          return;
+        }
+
+        // ── Logout explícito (401) ────────────────────────────────────
+        if (statusCode === DisconnectReason.loggedOut) {
+          logger.error('Sessão encerrada (logout). Apague os dados de sessão e reinicie.');
+          if (IS_PRODUCTION) {
             try {
               const { getSupabase } = require('../services/supabase');
               await getSupabase()?.from('bot_auth_state').delete().neq('key', 'never');
@@ -114,8 +133,16 @@ async function connectToWhatsApp() {
             } catch (e) { /* ignora */ }
           }
           process.exit(1);
+        }
+
+        // ── Outros erros: backoff exponencial ─────────────────────────
+        if (reconnectAttempts < MAX_RECONNECT) {
+          reconnectAttempts++;
+          const delay = Math.min(reconnectAttempts * 5000, 60000);
+          logger.info(`Tentativa de reconexão ${reconnectAttempts}/${MAX_RECONNECT} em ${delay / 1000}s...`);
+          setTimeout(connectToWhatsApp, delay);
         } else {
-          logger.error('Número máximo de tentativas atingido.');
+          logger.error('Número máximo de tentativas atingido. A encerrar.');
           process.exit(1);
         }
       }
