@@ -1,4 +1,5 @@
-const { getSocket } = require('../bot/connection');
+// NOTA: getSocket é importado de forma lazy dentro de sendToAdmin
+// para evitar dependência circular entre connection.js e notificationService.js
 const { getSupabase } = require('./supabase');
 const { formatJid } = require('../utils/messageFormatter');
 const config = require('../config');
@@ -12,6 +13,8 @@ const ADMIN_PHONE = process.env.ADMIN_PHONE || config.human.phone;
  */
 async function sendToAdmin(message) {
   try {
+    // Require lazy para evitar dependência circular com connection.js
+    const { getSocket } = require('../bot/connection');
     const sock = getSocket();
     if (!sock) {
       logger.warn('Notificação ignorada: bot não conectado.');

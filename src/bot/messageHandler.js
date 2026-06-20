@@ -1,4 +1,4 @@
-const { isWithinBusinessHours, getNextAvailableText } = require('../utils/timeChecker');
+// Bot opera 24/7 — sem restrição de horário
 const { getState, setState, resetState, isInactive, setHumanMode, isHumanActive } = require('../utils/stateManager');
 const { isMenuCommand, extractPhone } = require('../utils/messageFormatter');
 const { upsertClient, getClientByPhone } = require('../services/clientService');
@@ -72,13 +72,6 @@ async function handleMessage(sock, message) {
       return;
     }
 
-    // ─── FORA DO HORÁRIO ──────────────────────────────────────────────
-    if (!isWithinBusinessHours()) {
-      const reply = mainMenu.getOutOfHoursMessage(getNextAvailableText());
-      await sendMessage(sock, jid, reply);
-      await saveMessage(phone, 'outgoing', reply);
-      return;
-    }
 
     // ─── TIMEOUT DE INACTIVIDADE ──────────────────────────────────────
     if (isInactive(phone, config.bot.inactivityTimeout)) {
