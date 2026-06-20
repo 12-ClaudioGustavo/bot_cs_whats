@@ -4,7 +4,9 @@ const config = require('../config');
 const logger = require('../utils/logger');
 
 // ─── FILTRO DE RUÍDO DO BAILEYS/LIBSIGNAL ────────────────
-// Estas mensagens são inofensivas e apenas poluem o terminal
+// Estas mensagens são inofensivas e apenas poluem o terminal.
+// O libsignal escreve DIRECTAMENTE em process.stdout/stderr,
+// contornando console.log — por isso filtramos ao nível do stream.
 const NOISE_PATTERNS = [
   // libsignal / session crypto
   'Failed to decrypt message',
@@ -37,18 +39,52 @@ const NOISE_PATTERNS = [
   '<Buffer',
 ];
 
-const _origError = console.error.bind(console);
-const _origWarn  = console.warn.bind(console);
-const _origLog   = console.log.bind(console);
-
-function isNoise(args) {
-  const str = args.map(a => (typeof a === 'string' ? a : JSON.stringify(a))).join(' ');
+function isNoiseStr(str) {
   return NOISE_PATTERNS.some(p => str.includes(p));
 }
 
+function isNoise(args) {
+  try {
+    const str = args.map(a => {
+      if (typeof a === 'string') return a;
+      try { return JSON.stringify(a); } catch { return String(a); }
+    }).join(' ');
+    return isNoiseStr(str);
+  } catch { return false; }
+}
+
+// Filtro ao nível do console
+const _origError = console.error.bind(console);
+const _origWarn  = console.warn.bind(console);
+const _origLog   = console.log.bind(console);
 console.error = (...args) => { if (!isNoise(args)) _origError(...args); };
 console.warn  = (...args) => { if (!isNoise(args)) _origWarn(...args); };
 console.log   = (...args) => { if (!isNoise(args)) _origLog(...args); };
+
+// Filtro ao nível do stream (captura escrita directa ao stdout/stderr)
+// Necessário para o libsignal que não usa console.log
+const _origStdoutWrite = process.stdout.write.bind(process.stdout);
+const _origStderrWrite = process.stderr.write.bind(process.stderr);
+
+process.stdout.write = (chunk, encoding, cb) => {
+  const str = typeof chunk === 'string' ? chunk : chunk.toString();
+  if (isNoiseStr(str)) {
+    if (typeof encoding === 'function') encoding();
+    else if (typeof cb === 'function') cb();
+    return true;
+  }
+  return _origStdoutWrite(chunk, encoding, cb);
+};
+
+process.stderr.write = (chunk, encoding, cb) => {
+  const str = typeof chunk === 'string' ? chunk : chunk.toString();
+  if (isNoiseStr(str)) {
+    if (typeof encoding === 'function') encoding();
+    else if (typeof cb === 'function') cb();
+    return true;
+  }
+  return _origStderrWrite(chunk, encoding, cb);
+};
 // ─────────────────────────────────────────────────────────
 
 // Banner de início
