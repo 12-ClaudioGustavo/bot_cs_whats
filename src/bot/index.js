@@ -6,11 +6,13 @@ const logger = require('../utils/logger');
 // ─── FILTRO DE RUÍDO DO BAILEYS/LIBSIGNAL ────────────────
 // Estas mensagens são inofensivas e apenas poluem o terminal
 const NOISE_PATTERNS = [
+  // libsignal / session crypto
   'Failed to decrypt message',
   'MessageCounterError',
   'Bad MAC',
   'Closing open session',
   'Closing session:',
+  'Decrypted message with closed session',
   'SessionEntry',
   '_chains:',
   'chainKey:',
@@ -28,6 +30,11 @@ const NOISE_PATTERNS = [
   'remoteIdentityKey:',
   'pubKey:',
   'privKey:',
+  'pendingPreKey:',
+  'signedKeyId:',
+  'preKeyId:',
+  // buffers binários
+  '<Buffer',
 ];
 
 const _origError = console.error.bind(console);
@@ -41,6 +48,7 @@ function isNoise(args) {
 
 console.error = (...args) => { if (!isNoise(args)) _origError(...args); };
 console.warn  = (...args) => { if (!isNoise(args)) _origWarn(...args); };
+console.log   = (...args) => { if (!isNoise(args)) _origLog(...args); };
 // ─────────────────────────────────────────────────────────
 
 // Banner de início
