@@ -73,11 +73,21 @@ startHttpServer().catch(err => logger.error(`Erro no servidor HTTP: ${err.messag
 const { startDailyReportScheduler } = require('../services/notificationService');
 startDailyReportScheduler();
 
-// Inicia o bot
-connectToWhatsApp().catch(err => {
-  logger.error(`Erro fatal ao iniciar o bot: ${err.message}`);
-  process.exit(1);
-});
+// Inicia o bot — com delay em produção para evitar conflito de instâncias
+// (o Render faz zero-downtime: nova instância sobe ANTES da antiga morrer)
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+const STARTUP_DELAY = IS_PRODUCTION ? 20000 : 0; // 20s em prod, 0 em local
+
+if (STARTUP_DELAY > 0) {
+  logger.info(`⏳ Aguardando ${STARTUP_DELAY / 1000}s antes de conectar (evitar conflito de instâncias)...`);
+}
+
+setTimeout(() => {
+  connectToWhatsApp().catch(err => {
+    logger.error(`Erro fatal ao iniciar o bot: ${err.message}`);
+    process.exit(1);
+  });
+}, STARTUP_DELAY);
 
 // Gestão de encerramentos graceful
 process.on('SIGTERM', () => {

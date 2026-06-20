@@ -113,7 +113,8 @@ async function connectToWhatsApp() {
             } catch (e) { /* ignora */ }
             // Reinicia do zero para gerar novo QR em vez de loop
             reconnectAttempts = 0;
-            setTimeout(connectToWhatsApp, 5000);
+            logger.info('A aguardar 30s para garantir que a outra instância terminou...');
+            setTimeout(connectToWhatsApp, 30000);
           } else {
             // Local: avisa e sai para o utilizador corrigir manualmente
             logger.error('Encerra o outro processo e reinicia com: npm start');
