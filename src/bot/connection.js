@@ -28,6 +28,7 @@ if (!IS_PRODUCTION && !fs.existsSync(SESSION_PATH)) {
 
 let sock = null;
 let reconnectAttempts = 0;
+let reconnectAttempts440 = 0; // contador de 440s consecutivos
 const MAX_RECONNECT = 10;
 
 /**
@@ -98,28 +99,33 @@ async function connectToWhatsApp() {
         logger.warn(`Conexão encerrada. Código: ${statusCode}.`);
 
         // ── Código 440: connectionReplaced ────────────────────────────
-        // Outra instância do bot tomou a mesma sessão (ex: dois processos
-        // a correr em simultâneo). Reconectar com a mesma sessão causaria
-        // loop infinito de 440. A solução é limpar a sessão e gerar novo QR.
+        // O 440 pode ser transiente: o telemóvel reconecta ao WA por
+        // instantes e desloca a sessão do bot brevemente. Limpar a sessão
+        // e forçar novo QR causava loop infinito pior. A estratégia correcta
+        // é aguardar 60s e reconectar com a MESMA sessão — na maioria dos
+        // casos o bot volta a ligar sem necessidade de novo scan.
         if (statusCode === DisconnectReason.connectionReplaced) {
-          logger.error('⚠️  Sessão substituída por outra instância (código 440).');
-          logger.error('   Certifica-te de que só existe UMA instância do bot a correr.');
+          reconnectAttempts440 = (reconnectAttempts440 || 0) + 1;
+          logger.warn(`Sessão substituída (440) — tentativa ${reconnectAttempts440}. A aguardar 60s e a reconectar com a sessão actual...`);
 
-          if (IS_PRODUCTION) {
-            try {
-              const { getSupabase } = require('../services/supabase');
-              await getSupabase()?.from('bot_auth_state').delete().neq('key', 'never');
-              logger.info('Sessão limpa do Supabase. A reiniciar para novo QR...');
-            } catch (e) { /* ignora */ }
-            // Reinicia do zero para gerar novo QR em vez de loop
-            reconnectAttempts = 0;
-            logger.info('A aguardar 30s para garantir que a outra instância terminou...');
-            setTimeout(connectToWhatsApp, 30000);
-          } else {
-            // Local: avisa e sai para o utilizador corrigir manualmente
-            logger.error('Encerra o outro processo e reinicia com: npm start');
-            process.exit(1);
+          // Após 5 440s consecutivos sem sucesso, limpa sessão e pede novo QR
+          if (reconnectAttempts440 >= 5) {
+            logger.error('5 erros 440 consecutivos. A limpar sessão e gerar novo QR...');
+            if (IS_PRODUCTION) {
+              try {
+                const { getSupabase } = require('../services/supabase');
+                await getSupabase()?.from('bot_auth_state').delete().neq('key', 'never');
+                logger.info('Sessão limpa. Vai a /qr para escanear o novo QR Code.');
+              } catch (e) { /* ignora */ }
+            } else {
+              logger.error('Apaga a pasta sessions/ e reinicia com: npm start');
+              process.exit(1);
+            }
+            reconnectAttempts440 = 0;
           }
+
+          // Reconecta com sessão existente após 60s
+          setTimeout(connectToWhatsApp, 60000);
           return;
         }
 
@@ -150,6 +156,7 @@ async function connectToWhatsApp() {
 
       if (connection === 'open') {
         reconnectAttempts = 0;
+        reconnectAttempts440 = 0; // reset: conexão bem sucedida
         setBotStatus('connected');
         console.log('\n  ✅  BOT CONECTADO COM SUCESSO!');
         console.log('  📞  ' + config.company.name);
