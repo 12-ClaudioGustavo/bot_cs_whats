@@ -3,52 +3,71 @@ const QRCode  = require('qrcode');
 const config  = require('../config');
 const logger  = require('../utils/logger');
 
+// ─── Estado central ──────────────────────────────────────
 let currentQRString = null;
 let botStatus = 'starting'; // 'starting' | 'qr' | 'connected' | 'disconnected'
 
-// ─── Lista de clientes SSE conectados ────────────────────
+// ─── Clientes SSE conectados ──────────────────────────────
 const sseClients = new Set();
 
 /**
- * Envia um evento SSE para todos os clientes conectados
+ * Envia o estado actual para todos os clientes SSE.
+ * Usa um único evento 'update' com {status, qrDataUrl} para
+ * evitar que o cliente precise gerir dois listeners separados.
  */
-function broadcastSSE(event, data) {
-  const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+function broadcastUpdate(payload) {
+  const msg = `event: update\ndata: ${JSON.stringify(payload)}\n\n`;
   for (const res of sseClients) {
-    try { res.write(payload); } catch (_) { sseClients.delete(res); }
+    try { res.write(msg); } catch (_) { sseClients.delete(res); }
   }
 }
 
+// ─── API pública (chamada pelo connection.js) ─────────────
+
 /**
- * Actualiza o QR Code actual (chamado pelo connection.js)
+ * Chamado quando o Baileys gera um novo QR Code.
  */
 function setCurrentQR(qr) {
   currentQRString = qr;
   botStatus = 'qr';
-  // Notifica todos os browsers imediatamente
-  QRCode.toDataURL(qr, { width: 280, margin: 2, color: { dark: '#000000', light: '#FFFFFF' } })
-    .then(dataUrl => broadcastSSE('qr', { status: 'qr', qrDataUrl: dataUrl }))
-    .catch(() => {});
+
+  // Gera a imagem uma única vez e empurra para todos os browsers
+  QRCode.toDataURL(qr, { width: 280, margin: 2, color: { dark: '#000', light: '#FFF' } })
+    .then(dataUrl => broadcastUpdate({ status: 'qr', qrDataUrl: dataUrl }))
+    .catch(e => logger.error(`Erro ao gerar QR DataURL: ${e.message}`));
 }
 
 /**
- * Actualiza o estado do bot (chamado pelo connection.js)
+ * Chamado pelo connection.js quando o estado muda.
+ * NOTA: ignoramos 'connecting' — esse evento dispara várias vezes
+ * durante a inicialização do Baileys e causaria troca incessante de estado
+ * sem nenhum benefício para o utilizador.
  */
 function setBotStatus(status) {
+  // Ignora 'connecting' para não piscar o estado
+  if (status === 'connecting') return;
+
+  // Ignora se o estado não mudou realmente
+  if (status === botStatus) return;
+
   botStatus = status;
-  if (status === 'connected') currentQRString = null;
-  // Notifica todos os browsers imediatamente
-  broadcastSSE('status', { status });
+
+  if (status === 'connected') {
+    currentQRString = null;
+    broadcastUpdate({ status: 'connected', qrDataUrl: null });
+  } else if (status === 'disconnected') {
+    broadcastUpdate({ status: 'disconnected', qrDataUrl: null });
+  }
+  // 'starting' não precisa de broadcast imediato — o cliente já vê o estado inicial
 }
 
-/**
- * Inicia o servidor HTTP necessário para o Render
- */
+// ─── Servidor HTTP ────────────────────────────────────────
+
 async function startHttpServer() {
   const port = config.bot.port || process.env.PORT || 3000;
   const app  = express();
 
-  // ─── Health Check (Render + UptimeRobot) ──────────────
+  // ── Health Check ──────────────────────────────────────
   app.get('/health', (req, res) => {
     res.status(200).json({
       status: botStatus,
@@ -57,57 +76,58 @@ async function startHttpServer() {
     });
   });
 
-  // ─── SSE — stream de estado em tempo real ─────────────
-  // O browser conecta aqui UMA VEZ e recebe actualizações sem reload
+  // ── SSE — stream de estado em tempo real ─────────────
+  // O browser conecta UMA vez e recebe pushes sempre que algo muda.
   app.get('/events', async (req, res) => {
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Connection', 'keep-alive');
-    res.setHeader('X-Accel-Buffering', 'no'); // desliga buffer no nginx/render
+    res.setHeader('Content-Type',  'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache, no-store');
+    res.setHeader('Connection',    'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no'); // desliga buffer nginx/render
     res.flushHeaders();
 
     // Regista o cliente
     sseClients.add(res);
 
-    // Envia estado inicial imediatamente
+    // ── Envia o estado actual imediatamente ao ligar ───
     let initPayload;
+
     if (botStatus === 'connected') {
       initPayload = { status: 'connected', qrDataUrl: null };
-    } else if (currentQRString) {
+
+    } else if (botStatus === 'qr' && currentQRString) {
       try {
         const dataUrl = await QRCode.toDataURL(currentQRString, {
-          width: 280, margin: 2, color: { dark: '#000000', light: '#FFFFFF' },
+          width: 280, margin: 2, color: { dark: '#000', light: '#FFF' },
         });
         initPayload = { status: 'qr', qrDataUrl: dataUrl };
       } catch (_) {
-        initPayload = { status: botStatus, qrDataUrl: null };
+        initPayload = { status: 'starting', qrDataUrl: null };
       }
+
     } else {
       initPayload = { status: botStatus, qrDataUrl: null };
     }
 
-    res.write(`event: status\ndata: ${JSON.stringify(initPayload)}\n\n`);
+    res.write(`event: update\ndata: ${JSON.stringify(initPayload)}\n\n`);
 
-    // Heartbeat a cada 25s para manter a ligação viva (evita timeout do Render)
+    // ── Heartbeat a cada 25s (evita timeout do Render/nginx) ──
     const heartbeat = setInterval(() => {
       try { res.write(': ping\n\n'); } catch (_) { clearInterval(heartbeat); }
     }, 25000);
 
-    // Remove cliente quando ele fechar a ligação
+    // ── Limpa quando o browser fecha a ligação ─────────
     req.on('close', () => {
       clearInterval(heartbeat);
       sseClients.delete(res);
     });
   });
 
-  // ─── Raiz ─────────────────────────────────────────────
-  app.get('/', (req, res) => {
-    res.redirect('/qr');
-  });
+  // ── Raiz → redireciona para /qr ───────────────────────
+  app.get('/', (req, res) => res.redirect('/qr'));
 
-  // ─── Página do QR Code (sem reloads — usa SSE) ────────
+  // ── Página do QR (SPA — sem reloads) ─────────────────
   app.get('/qr', (req, res) => {
-    const html = `<!DOCTYPE html>
+    res.send(`<!DOCTYPE html>
 <html lang="pt">
 <head>
   <meta charset="UTF-8">
@@ -115,8 +135,7 @@ async function startHttpServer() {
   <title>QR Code — ${config.company.name}</title>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
-
-    * { box-sizing: border-box; margin: 0; padding: 0; }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
       font-family: 'Inter', 'Segoe UI', sans-serif;
@@ -141,60 +160,50 @@ async function startHttpServer() {
       box-shadow: 0 0 60px rgba(37,211,102,0.08);
     }
 
-    .logo { font-size: 2.2rem; margin-bottom: 4px; }
+    .logo { font-size: 2.4rem; margin-bottom: 6px; }
+    h1 { color: #25D366; font-size: 1.3rem; font-weight: 700; margin-bottom: 4px; }
+    .company { color: #666; font-size: 0.82rem; margin-bottom: 22px; }
 
-    h1 {
-      color: #25D366;
-      font-size: 1.3rem;
-      font-weight: 700;
-      margin-bottom: 4px;
-    }
-
-    .company { color: #888; font-size: 0.85rem; margin-bottom: 20px; }
-
+    /* Badge de estado */
     .badge {
       display: inline-flex;
       align-items: center;
-      gap: 6px;
-      padding: 6px 16px;
+      gap: 8px;
+      padding: 7px 18px;
       border-radius: 99px;
       font-size: 0.82rem;
-      font-weight: 600;
-      letter-spacing: 0.04em;
-      margin-bottom: 20px;
-      transition: background 0.4s, color 0.4s;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      margin-bottom: 22px;
     }
-    .badge.starting  { background: #2a2a18; color: #f5c518; }
-    .badge.qr        { background: #132b1e; color: #25D366; }
-    .badge.connected { background: #102440; color: #4aa8f5; }
-    .badge.disconnected { background: #2a1818; color: #f55a4a; }
+    .badge.starting      { background: #242416; color: #d4a800; }
+    .badge.qr            { background: #0e2318; color: #25D366; }
+    .badge.connected     { background: #0e1f33; color: #4aa8f5; }
+    .badge.disconnected  { background: #2a1010; color: #f06060; }
 
-    /* Dot animado */
     .dot {
-      width: 8px; height: 8px;
-      border-radius: 50%;
+      width: 8px; height: 8px; border-radius: 50%;
       background: currentColor;
-      animation: pulse 1.6s ease-in-out infinite;
+      animation: pulse 1.8s ease-in-out infinite;
     }
     @keyframes pulse {
       0%, 100% { opacity: 1; transform: scale(1); }
-      50%       { opacity: 0.4; transform: scale(0.7); }
+      50%       { opacity: 0.3; transform: scale(0.65); }
     }
 
-    /* QR wrapper */
-    #qr-wrap {
+    /* Área do QR */
+    #qr-area {
       background: #fff;
       border-radius: 14px;
-      padding: 12px;
-      width: 260px;
-      height: 260px;
+      padding: 14px;
+      width: 256px; height: 256px;
       margin: 0 auto 20px;
       display: flex;
       align-items: center;
       justify-content: center;
-      transition: opacity 0.3s;
+      transition: opacity 0.4s;
     }
-    #qr-wrap img { width: 100%; height: 100%; border-radius: 8px; }
+    #qr-area img { width: 100%; height: 100%; display: block; border-radius: 6px; }
 
     /* Spinner */
     .spinner {
@@ -202,145 +211,143 @@ async function startHttpServer() {
       border: 4px solid #1e2e24;
       border-top-color: #25D366;
       border-radius: 50%;
-      animation: spin 0.9s linear infinite;
+      animation: spin 0.85s linear infinite;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
 
-    .msg { color: #aaa; font-size: 0.9rem; line-height: 1.6; margin-bottom: 12px; }
+    .msg { color: #999; font-size: 0.88rem; line-height: 1.65; min-height: 40px; margin-bottom: 12px; }
 
-    .steps { text-align: left; margin-top: 16px; }
-    .steps p { color: #eee; font-weight: 600; font-size: 0.9rem; margin-bottom: 8px; }
-    .steps ol { padding-left: 18px; }
-    .steps li { color: #bbb; font-size: 0.85rem; margin: 5px 0; }
+    /* Instruções */
+    #steps { text-align: left; margin-top: 14px; display: none; }
+    #steps strong { color: #eee; font-size: 0.88rem; display: block; margin-bottom: 8px; }
+    #steps ol { padding-left: 18px; }
+    #steps li { color: #bbb; font-size: 0.83rem; margin: 5px 0; }
 
-    .live-tag {
-      margin-top: 18px;
-      color: #444;
-      font-size: 0.75rem;
+    /* Tag live */
+    .live {
+      margin-top: 20px;
+      color: #333;
+      font-size: 0.73rem;
       display: flex;
       align-items: center;
       justify-content: center;
       gap: 5px;
     }
     .live-dot {
-      width: 6px; height: 6px;
+      width: 5px; height: 5px;
       background: #25D366;
       border-radius: 50%;
-      animation: pulse 1.6s ease-in-out infinite;
+      animation: pulse 1.8s ease-in-out infinite;
     }
   </style>
 </head>
 <body>
-  <div class="card">
-    <div class="logo">🤖</div>
-    <h1>Bot WhatsApp</h1>
-    <p class="company">${config.company.name}</p>
+<div class="card">
+  <div class="logo">🤖</div>
+  <h1>Bot WhatsApp</h1>
+  <p class="company">${config.company.name}</p>
 
-    <!-- Badge de estado -->
-    <div class="badge starting" id="badge">
-      <span class="dot"></span>
-      <span id="badge-text">A INICIAR...</span>
-    </div>
-
-    <!-- Área do QR / Spinner / Mensagem de conectado -->
-    <div id="qr-wrap">
-      <div class="spinner" id="spinner"></div>
-      <img id="qr-img" src="" alt="QR Code" style="display:none;">
-    </div>
-
-    <p class="msg" id="msg">A aguardar o QR Code...</p>
-
-    <!-- Instruções (visíveis só quando há QR) -->
-    <div class="steps" id="steps" style="display:none;">
-      <p>Como conectar:</p>
-      <ol>
-        <li>Abra o WhatsApp no telemóvel</li>
-        <li>Toque em ⋮ → <strong>Dispositivos vinculados</strong></li>
-        <li>Toque em <strong>Vincular dispositivo</strong></li>
-        <li>Aponte a câmara para o QR Code acima</li>
-      </ol>
-    </div>
-
-    <div class="live-tag">
-      <span class="live-dot"></span>
-      Actualizações em tempo real · sem reload da página
-    </div>
+  <div id="badge" class="badge starting">
+    <span class="dot"></span>
+    <span id="badge-txt">A INICIAR...</span>
   </div>
 
-  <script>
-    const badge     = document.getElementById('badge');
-    const badgeTxt  = document.getElementById('badge-text');
-    const spinner   = document.getElementById('spinner');
-    const qrImg     = document.getElementById('qr-img');
-    const msg       = document.getElementById('msg');
-    const steps     = document.getElementById('steps');
-    const qrWrap    = document.getElementById('qr-wrap');
+  <div id="qr-area">
+    <div class="spinner" id="spinner"></div>
+    <img id="qr-img" src="" alt="QR Code" style="display:none;">
+  </div>
 
-    function applyState(data) {
-      const { status, qrDataUrl } = data;
+  <p class="msg" id="msg">A aguardar o QR Code...</p>
 
-      // Reset
-      badge.className = 'badge ' + status;
-      spinner.style.display  = 'none';
-      qrImg.style.display    = 'none';
-      steps.style.display    = 'none';
+  <div id="steps">
+    <strong>Como conectar:</strong>
+    <ol>
+      <li>Abra o WhatsApp no telemóvel</li>
+      <li>Toque em ⋮ → <b>Dispositivos vinculados</b></li>
+      <li>Toque em <b>Vincular dispositivo</b></li>
+      <li>Aponte a câmara para o QR Code acima</li>
+    </ol>
+  </div>
 
-      if (status === 'connected') {
-        badgeTxt.textContent = '✅ CONECTADO';
-        qrWrap.style.opacity = '0.3';
-        msg.textContent = 'O bot está activo e a receber mensagens! 🎉';
+  <div class="live"><span class="live-dot"></span> Actualizações em tempo real · sem reload</div>
+</div>
 
-      } else if (status === 'qr' && qrDataUrl) {
+<script>
+  const badge   = document.getElementById('badge');
+  const badgeTxt= document.getElementById('badge-txt');
+  const spinner = document.getElementById('spinner');
+  const qrImg   = document.getElementById('qr-img');
+  const msg     = document.getElementById('msg');
+  const steps   = document.getElementById('steps');
+  const qrArea  = document.getElementById('qr-area');
+
+  function applyUpdate(data) {
+    const { status, qrDataUrl } = data;
+
+    // Reset visual
+    spinner.style.display = 'none';
+    qrImg.style.display   = 'none';
+    steps.style.display   = 'none';
+    qrArea.style.opacity  = '1';
+
+    badge.className = 'badge ' + status;
+
+    switch (status) {
+      case 'connected':
+        badgeTxt.textContent  = '✅ CONECTADO';
+        qrArea.style.opacity  = '0.25';
+        spinner.style.display = 'none';
+        msg.innerHTML = '✅ Bot activo e a receber mensagens!<br><span style="color:#25D366">Pode fechar esta aba.</span>';
+        break;
+
+      case 'qr':
         badgeTxt.textContent = '📷 AGUARDANDO SCAN';
-        qrWrap.style.opacity = '1';
-        qrImg.src = qrDataUrl;
-        qrImg.style.display = 'block';
+        if (qrDataUrl) {
+          qrImg.src = qrDataUrl;
+          qrImg.style.display = 'block';
+        } else {
+          spinner.style.display = 'block';
+        }
         steps.style.display = 'block';
-        msg.textContent = '⚠️ O QR expira em ~60s — será actualizado automaticamente.';
+        msg.textContent = '⚠️ O QR expira em ~60s — será renovado automaticamente.';
+        break;
 
-      } else if (status === 'disconnected') {
-        badgeTxt.textContent = '⚠️ DESCONECTADO';
-        qrWrap.style.opacity = '0.4';
+      case 'disconnected':
+        badgeTxt.textContent  = '⚠️ DESCONECTADO';
+        qrArea.style.opacity  = '0.3';
         spinner.style.display = 'block';
-        msg.textContent = 'Bot desconectado. A tentar reconectar...';
+        msg.textContent = 'Bot desconectado. A reconectar...';
+        break;
 
-      } else {
-        // starting / qualquer outro
-        badgeTxt.textContent = '⏳ A INICIAR...';
-        qrWrap.style.opacity = '1';
+      default: // starting
+        badgeTxt.textContent  = '⏳ A INICIAR...';
         spinner.style.display = 'block';
         msg.textContent = 'A iniciar o bot. O QR Code aparecerá em breve.';
-      }
     }
+  }
 
-    // ── SSE — uma só ligação, zero reloads ──
-    function conectarSSE() {
-      const es = new EventSource('/events');
+  // ── SSE — uma ligação, zero reloads ──────────────────
+  function ligarSSE() {
+    const es = new EventSource('/events');
 
-      es.addEventListener('status', (e) => {
-        try { applyState(JSON.parse(e.data)); } catch (_) {}
-      });
+    es.addEventListener('update', (e) => {
+      try { applyUpdate(JSON.parse(e.data)); } catch (_) {}
+    });
 
-      es.addEventListener('qr', (e) => {
-        try { applyState(JSON.parse(e.data)); } catch (_) {}
-      });
+    es.onerror = () => {
+      // Fecha e reconecta após 3s se a ligação SSE cair
+      es.close();
+      setTimeout(ligarSSE, 3000);
+    };
+  }
 
-      es.onerror = () => {
-        // Reconecta automaticamente após 3s se a ligação cair
-        es.close();
-        setTimeout(conectarSSE, 3000);
-      };
-    }
-
-    conectarSSE();
-  </script>
+  ligarSSE();
+</script>
 </body>
-</html>`;
-
-    res.send(html);
+</html>`);
   });
 
-  // ─── Inicia o servidor ─────────────────────────────────
+  // ── Inicia o servidor ──────────────────────────────────
   app.listen(port, '0.0.0.0', () => {
     logger.info(`Servidor HTTP iniciado na porta ${port}`);
     logger.info(`QR Code disponível em: /qr`);
