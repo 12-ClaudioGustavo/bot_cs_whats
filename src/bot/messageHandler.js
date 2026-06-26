@@ -64,6 +64,7 @@ async function handleMessage(sock, message) {
       if (humanSupport.isBotResumeCommand(text)) {
         setHumanMode(phone, false);
         resetState(phone);
+        setState(phone, { flow: 'main_menu', step: 'waiting', isNew: false });
         const reply = humanSupport.getBotResumeMessage();
         await sendMessage(sock, jid, reply);
         await saveMessage(phone, 'outgoing', reply);
@@ -81,6 +82,7 @@ async function handleMessage(sock, message) {
     // ─── COMANDO DE MENU (digita "menu", "0", etc.) ──────────────────
     if (isMenuCommand(text)) {
       resetState(phone);
+      setState(phone, { flow: 'main_menu', step: 'waiting', isNew: false });
       const client = await getClientByPhone(phone);
       const reply = mainMenu.getWelcomeMessage(client?.name);
       await sendMessage(sock, jid, reply);
@@ -275,7 +277,7 @@ async function routeToFlow(sock, jid, phone, route, state) {
     case 'about':
       reply = mainMenu.getAboutMessage();
       resetState(phone);
-      setState(phone, { flow: 'main_menu', step: 'waiting' });
+      setState(phone, { flow: 'main_menu', step: 'waiting', isNew: false });
       break;
 
     case 'catalog':
