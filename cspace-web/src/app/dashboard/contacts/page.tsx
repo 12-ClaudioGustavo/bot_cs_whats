@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { API_URL } from '@/lib/api';
 
 interface Client {
   id: string;
@@ -31,7 +32,7 @@ export default function ContactsPage() {
   useEffect(() => {
     async function loadClients() {
       try {
-        const res = await fetch('http://localhost:3001/api/clients', {
+        const res = await fetch(`${API_URL}/api/clients`, {
           credentials: 'include',
         });
         if (res.ok) {
@@ -50,7 +51,7 @@ export default function ContactsPage() {
     setSelectedClient(client);
     setLoadingMessages(true);
     try {
-      const res = await fetch(`http://localhost:3001/api/conversations/${client.phone}`, {
+      const res = await fetch(`${API_URL}/api/conversations/${client.phone}`, {
         credentials: 'include',
       });
       if (res.ok) {

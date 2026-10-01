@@ -2,6 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
+import { API_URL } from '@/lib/api';
 
 interface Plan {
   id: string;
@@ -41,8 +42,8 @@ function BillingContent() {
   const loadData = async () => {
     try {
       const [statsRes, plansRes] = await Promise.all([
-        fetch('http://localhost:3001/api/dashboard/stats', { credentials: 'include' }),
-        fetch('http://localhost:3001/api/plans'),
+        fetch(`${API_URL}/api/dashboard/stats`, { credentials: 'include' }),
+        fetch(`${API_URL}/api/plans`),
       ]);
 
       if (statsRes.ok) {

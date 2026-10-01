@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useUI } from '@/components/ui-provider';
+import { API_URL } from '@/lib/api';
 
 interface Plan {
   id: string;
@@ -31,7 +32,7 @@ export default function CheckoutPage() {
   useEffect(() => {
     async function loadPlan() {
       try {
-        const res = await fetch('http://localhost:3001/api/plans');
+        const res = await fetch(`${API_URL}/api/plans`);
         if (res.ok) {
           const plans: Plan[] = await res.json();
           const targetId = decodeURIComponent(planId).toLowerCase();
@@ -73,7 +74,7 @@ export default function CheckoutPage() {
       formData.append('transactionId', transactionId.trim());
       formData.append('receipt', receiptFile);
 
-      const res = await fetch('http://localhost:3001/api/checkout', {
+      const res = await fetch(`${API_URL}/api/checkout`, {
         method: 'POST',
         credentials: 'include',
         body: formData,

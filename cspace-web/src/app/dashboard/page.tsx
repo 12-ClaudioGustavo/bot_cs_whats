@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { API_URL } from '@/lib/api';
 
 interface Stats {
   status: string;
@@ -19,7 +20,7 @@ export default function DashboardOverviewPage() {
   useEffect(() => {
     async function fetchStats() {
       try {
-        const res = await fetch('http://localhost:3001/api/dashboard/stats', {
+        const res = await fetch(`${API_URL}/api/dashboard/stats`, {
           credentials: 'include',
         });
 

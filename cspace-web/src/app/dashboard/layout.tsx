@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import UserDropdown from '@/components/UserDropdown';
 import CSVecnaLogo from '@/components/CSVecnaLogo';
+import { API_URL } from '@/lib/api';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -32,7 +33,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           setTenantName(u.tenantName || 'Minha Empresa');
         }
 
-        const statsRes = await fetch('http://localhost:3001/api/dashboard/stats', {
+        const statsRes = await fetch(`${API_URL}/api/dashboard/stats`, {
           credentials: 'include',
         });
         if (statsRes.ok) {

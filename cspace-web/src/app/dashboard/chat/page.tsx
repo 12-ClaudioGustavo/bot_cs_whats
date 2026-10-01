@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { API_URL } from '@/lib/api';
 
 interface Conversation {
   id: string;
@@ -37,7 +38,7 @@ export default function ConversationsPage() {
   useEffect(() => {
     async function loadConversations() {
       try {
-        const res = await fetch('http://localhost:3001/api/conversations', {
+        const res = await fetch(`${API_URL}/api/conversations`, {
           credentials: 'include',
         });
         if (res.ok) {
@@ -57,7 +58,7 @@ export default function ConversationsPage() {
     setClientName(name);
     setLoadingMessages(true);
     try {
-      const res = await fetch(`http://localhost:3001/api/conversations/${phone}`, {
+      const res = await fetch(`${API_URL}/api/conversations/${phone}`, {
         credentials: 'include',
       });
       if (res.ok) {
