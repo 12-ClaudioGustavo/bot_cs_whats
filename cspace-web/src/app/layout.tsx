@@ -6,6 +6,11 @@ export const metadata: Metadata = {
   title: 'CSVecna — Automação WhatsApp & SaaS Multi-Tenant por C-Space Technologies',
   description: 'Plataforma SaaS CSVecna de automação inteligente para WhatsApp, disparo de mensagens, atendimento automático e inteligência de negócios por C-Space Technologies.',
   keywords: ['CSVecna', 'WhatsApp Bot', 'SaaS', 'Automação', 'C-Space Technologies', 'Angola', 'CRM WhatsApp', 'Atendimento'],
+  icons: {
+    icon: '/icon.png',
+    shortcut: '/icon.png',
+    apple: '/icon.png',
+  },
 };
 
 export default function RootLayout({
