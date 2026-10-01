@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QR Code — C-Space WhatsApp Bot</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', 'Segoe UI', sans-serif;
+      background: #0a0f0d;
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .card {
+      background: #141a17;
+      border: 1px solid rgba(37,211,102,0.15);
+      border-radius: 20px;
+      padding: 36px 32px;
+      text-align: center;
+      max-width: 440px;
+      width: 100%;
+      box-shadow: 0 0 60px rgba(37,211,102,0.08);
+    }
+
+    .logo { font-size: 2.4rem; margin-bottom: 6px; }
+    h1 { color: #25D366; font-size: 1.3rem; font-weight: 700; margin-bottom: 4px; }
+    .company { color: #666; font-size: 0.82rem; margin-bottom: 22px; }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 18px;
+      border-radius: 99px;
+      font-size: 0.82rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      margin-bottom: 22px;
+    }
+    .badge.starting      { background: #242416; color: #d4a800; }
+    .badge.qr            { background: #0e2318; color: #25D366; }
+    .badge.connected     { background: #0e1f33; color: #4aa8f5; }
+    .badge.disconnected  { background: #2a1010; color: #f06060; }
+
+    .dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: currentColor;
+      animation: pulse 1.8s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50%       { opacity: 0.3; transform: scale(0.65); }
+    }
+
+    #qr-area {
+      background: #fff;
+      border-radius: 14px;
+      padding: 14px;
+      width: 256px; height: 256px;
+      margin: 0 auto 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: opacity 0.4s;
+    }
+    #qr-area img { width: 100%; height: 100%; display: block; border-radius: 6px; }
+
+    .spinner {
+      width: 48px; height: 48px;
+      border: 4px solid #1e2e24;
+      border-top-color: #25D366;
+      border-radius: 50%;
+      animation: spin 0.85s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .msg { color: #999; font-size: 0.88rem; line-height: 1.65; min-height: 40px; margin-bottom: 12px; }
+
+    #steps { text-align: left; margin-top: 14px; display: none; }
+    #steps strong { color: #eee; font-size: 0.88rem; display: block; margin-bottom: 8px; }
+    #steps ol { padding-left: 18px; }
+    #steps li { color: #bbb; font-size: 0.83rem; margin: 5px 0; }
+
+    .live {
+      margin-top: 20px;
+      color: #333;
+      font-size: 0.73rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+    }
+    .live-dot {
+      width: 5px; height: 5px;
+      background: #25D366;
+      border-radius: 50%;
+      animation: pulse 1.8s ease-in-out infinite;
+    }
+  </style>
+</head>
+<body>
+<div class="card">
+  <div class="logo">🤖</div>
+  <h1>Bot WhatsApp</h1>
+  <p class="company">C-Space Technologies</p>
+
+  <div id="badge" class="badge starting">
+    <span class="dot"></span>
+    <span id="badge-txt">A INICIAR...</span>
+  </div>
+
+  <div id="qr-area">
+    <div class="spinner" id="spinner"></div>
+    <img id="qr-img" src="" alt="QR Code" style="display:none;">
+  </div>
+
+  <p class="msg" id="msg">A aguardar o QR Code...</p>
+
+  <div id="steps">
+    <strong>Como conectar:</strong>
+    <ol>
+      <li>Abra o WhatsApp no telemóvel</li>
+      <li>Toque em ⋮ → <b>Dispositivos vinculados</b></li>
+      <li>Toque em <b>Vincular dispositivo</b></li>
+      <li>Aponte a câmara para o QR Code acima</li>
+    </ol>
+  </div>
+
+  <div class="live"><span class="live-dot"></span> Actualizações em tempo real · sem reload</div>
+</div>
+
+<script>
+  const badge   = document.getElementById('badge');
+  const badgeTxt= document.getElementById('badge-txt');
+  const spinner = document.getElementById('spinner');
+  const qrImg   = document.getElementById('qr-img');
+  const msg     = document.getElementById('msg');
+  const steps   = document.getElementById('steps');
+  const qrArea  = document.getElementById('qr-area');
+
+  function applyUpdate(data) {
+    const { status, qrDataUrl } = data;
+
+    spinner.style.display = 'none';
+    qrImg.style.display   = 'none';
+    steps.style.display   = 'none';
+    qrArea.style.opacity  = '1';
+
+    badge.className = 'badge ' + status;
+
+    switch (status) {
+      case 'connected':
+        badgeTxt.textContent  = '✅ CONECTADO';
+        qrArea.style.opacity  = '0.25';
+        spinner.style.display = 'none';
+        msg.innerHTML = '✅ Bot activo e a receber mensagens!<br><span style="color:#25D366">Pode fechar esta aba.</span>';
+        break;
+
+      case 'qr':
+        badgeTxt.textContent = '📷 AGUARDANDO SCAN';
+        if (qrDataUrl) {
+          qrImg.src = qrDataUrl;
+          qrImg.style.display = 'block';
+        } else {
+          spinner.style.display = 'block';
+        }
+        steps.style.display = 'block';
+        msg.textContent = '⚠️ O QR expira em ~60s — será renovado automaticamente.';
+        break;
+
+      case 'disconnected':
+        badgeTxt.textContent  = '⚠️ DESCONECTADO';
+        qrArea.style.opacity  = '0.3';
+        spinner.style.display = 'block';
+        msg.textContent = 'Bot desconectado. A reconectar...';
+        break;
+
+      default:
+        badgeTxt.textContent  = '⏳ A INICIAR...';
+        spinner.style.display = 'block';
+        msg.textContent = 'A iniciar o bot. O QR Code aparecerá em breve.';
+    }
+  }
+
+  function ligarSSE() {
+    const es = new EventSource('/events');
+
+    es.addEventListener('update', (e) => {
+      try { applyUpdate(JSON.parse(e.data)); } catch (_) {}
+    });
+
+    es.onerror = () => {
+      es.close();
+      setTimeout(ligarSSE, 3000);
+    };
+  }
+
+  ligarSSE();
+</script>
+</body>
+</html>

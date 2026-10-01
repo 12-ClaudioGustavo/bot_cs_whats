@@ -1,0 +1,9 @@
+{
+  "ignore": [
+    "sessions/*",
+    "sessions",
+    "*.json",
+    "node_modules"
+  ],
+  "ext": "js,mjs,cjs"
+}

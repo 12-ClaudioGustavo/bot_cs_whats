@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+cspace-web/node_modules/
+
+# Environment files
+.env
+.env.local
+.env.production
+
+# Next.js build output
+.next/
+cspace-web/.next/
+cspace-web/out/
+
+# WhatsApp session data
+sessions/
+*.auth_info/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS & IDE files
+.DS_Store
+*.swp
+.idea/
+.vscode/
