@@ -1,5 +1,7 @@
 'use client';
 
-import WhatsAppSessionsAdminPage from '../sessions/page';
+import WhatsAppSessionsView from '@/components/admin/WhatsAppSessionsView';
 
-export default WhatsAppSessionsAdminPage;
+export default function WhatsAppSessionsAliasPage() {
+  return <WhatsAppSessionsView />;
+}
