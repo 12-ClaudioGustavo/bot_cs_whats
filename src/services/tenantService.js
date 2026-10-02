@@ -20,7 +20,7 @@ async function getAllTenants() {
           status,
           current_period_start,
           current_period_end,
-          plans (name, code, price, monthly_message_limit, max_whatsapp_accounts, max_users)
+          plans (name, code, price_kz, monthly_message_limit, max_whatsapp_accounts, max_users)
         )
       `)
       .order('created_at', { ascending: false });
