@@ -39,17 +39,12 @@ export default function SuperAdminTenantsPage() {
   const loadTenants = async () => {
     try {
       setLoading(true);
+      setError('');
       const res = await fetch('/api/tenants', { credentials: 'include' });
 
       if (!res.ok) {
-        const fallbackRes = await fetch('http://localhost:3001/api/tenants', { credentials: 'include' });
-        if (!fallbackRes.ok) {
-          setError('Acesso negado. Apenas o Super Admin C-Space pode gerir empresas.');
-          setLoading(false);
-          return;
-        }
-        const fallbackData = await fallbackRes.json();
-        setTenants(fallbackData);
+        const errData = await res.json().catch(() => ({}));
+        setError(errData.error || 'Acesso negado. Apenas o Super Admin C-Space pode gerir empresas.');
         setLoading(false);
         return;
       }
