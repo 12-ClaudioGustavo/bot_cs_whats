@@ -1,6 +1,12 @@
 import { NextResponse } from 'next/server';
 
-const rawApiUrl = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || 'https://cspace-whatsapp-bot.onrender.com';
+let rawApiUrl = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || 'https://cspace-whatsapp-bot.onrender.com';
+if (rawApiUrl.includes('onrender') && !rawApiUrl.includes('onrender.com')) {
+  rawApiUrl = rawApiUrl.replace('onrender', 'onrender.com');
+}
+if (!rawApiUrl.startsWith('http://') && !rawApiUrl.startsWith('https://')) {
+  rawApiUrl = `https://${rawApiUrl}`;
+}
 const API_URL = rawApiUrl.replace(/\/+$/, '');
 
 export async function POST(request: Request) {

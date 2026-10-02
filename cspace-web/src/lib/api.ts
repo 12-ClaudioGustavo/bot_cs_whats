@@ -3,10 +3,19 @@
  * Em desenvolvimento: http://localhost:3001
  * Em produção: definida em NEXT_PUBLIC_API_URL
  */
-export const API_URL =
+let rawApiUrl =
   process.env.API_URL ||
   process.env.NEXT_PUBLIC_API_URL ||
   'https://cspace-whatsapp-bot.onrender.com';
+
+if (rawApiUrl.includes('onrender') && !rawApiUrl.includes('onrender.com')) {
+  rawApiUrl = rawApiUrl.replace('onrender', 'onrender.com');
+}
+if (!rawApiUrl.startsWith('http://') && !rawApiUrl.startsWith('https://')) {
+  rawApiUrl = `https://${rawApiUrl}`;
+}
+
+export const API_URL = rawApiUrl.replace(/\/+$/, '');
 
 /**
  * Wrapper de fetch que inclui automaticamente o cookie de sessão
