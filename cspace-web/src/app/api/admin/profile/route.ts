@@ -1,48 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getSession } from '@/lib/auth';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
-
-async function getAuthHeaders(request: NextRequest) {
-  const cookie = request.headers.get('cookie') || '';
-  return { 'Content-Type': 'application/json', Cookie: cookie };
-}
+import { NextRequest } from 'next/server';
+import { proxyToBackend } from '@/lib/apiProxy';
 
 export async function GET(request: NextRequest) {
-  const session = await getSession();
-  if (!session) return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 });
-  if (session.role !== 'super_admin' && session.role !== 'admin') {
-    return NextResponse.json({ error: 'Acesso negado.' }, { status: 403 });
-  }
-
-  try {
-    const res = await fetch(`${API_URL}/api/admin/profile`, {
-      headers: await getAuthHeaders(request),
-    });
-    const data = await res.json();
-    return NextResponse.json(data, { status: res.status });
-  } catch {
-    return NextResponse.json({ error: 'Erro ao conectar ao servidor.' }, { status: 503 });
-  }
+  return proxyToBackend(request, '/api/admin/profile', { requireRole: 'admin' });
 }
 
 export async function PUT(request: NextRequest) {
-  const session = await getSession();
-  if (!session) return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 });
-  if (session.role !== 'super_admin' && session.role !== 'admin') {
-    return NextResponse.json({ error: 'Acesso negado.' }, { status: 403 });
-  }
-
-  try {
-    const body = await request.json();
-    const res = await fetch(`${API_URL}/api/admin/profile`, {
-      method: 'PUT',
-      headers: await getAuthHeaders(request),
-      body: JSON.stringify(body),
-    });
-    const data = await res.json();
-    return NextResponse.json(data, { status: res.status });
-  } catch {
-    return NextResponse.json({ error: 'Erro ao conectar ao servidor.' }, { status: 503 });
-  }
+  return proxyToBackend(request, '/api/admin/profile', { requireRole: 'admin', method: 'PUT' });
 }

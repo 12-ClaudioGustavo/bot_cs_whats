@@ -70,7 +70,7 @@ function requireAuth(req, res, next) {
 
 function requireSuperAdmin(req, res, next) {
   requireAuth(req, res, () => {
-    if (req.user.role !== 'super_admin') {
+    if (req.user.role !== 'super_admin' && req.user.role !== 'admin') {
       return res.status(403).json({
         error: 'Acesso negado. Apenas o Super Admin C-Space pode aceder a esta área.',
       });

@@ -35,14 +35,15 @@ export default function AdminUsersPage() {
   const loadUsers = useCallback(async () => {
     try {
       setLoading(true);
+      setError('');
       const res = await fetch('/api/admin/users');
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError('Acesso negado. Apenas o Super Admin pode gerir a lista global de utilizadores.');
-        setLoading(false);
+        setError(data.error || 'Acesso negado. Apenas o Super Admin pode gerir a lista global de utilizadores.');
+        setUsers([]);
         return;
       }
-      const data = await res.json();
-      setUsers(data || []);
+      setUsers(Array.isArray(data) ? data : []);
     } catch (_) {
       setError('Erro ao carregar lista de utilizadores.');
     } finally {
