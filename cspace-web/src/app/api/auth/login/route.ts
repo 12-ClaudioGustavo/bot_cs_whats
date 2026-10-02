@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
-const API_URL = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || 'https://cspace-whatsapp-bot.onrender.com';
+const rawApiUrl = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || 'https://cspace-whatsapp-bot.onrender.com';
+const API_URL = rawApiUrl.replace(/\/+$/, '');
 
 export async function POST(request: Request) {
   try {
@@ -18,16 +19,16 @@ export async function POST(request: Request) {
     // Obter IP e User-Agent para auditoria
     const ip = request.headers.get('x-forwarded-for') ||
                request.headers.get('x-real-ip') ||
-               'unknown';
-    const userAgent = request.headers.get('user-agent') || 'unknown';
+               '127.0.0.1';
+    const userAgent = request.headers.get('user-agent') || 'Mozilla/5.0';
 
     // Reencaminhar para o backend Express
     const backendRes = await fetch(`${API_URL}/api/auth/login`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'User-Agent': userAgent,
         'X-Forwarded-For': ip,
-        'X-User-Agent': userAgent,
       },
       body: JSON.stringify({ email, password }),
     });
@@ -35,7 +36,6 @@ export async function POST(request: Request) {
     const data = await backendRes.json();
 
     if (!backendRes.ok || !data.success) {
-      // Log de tentativa falha (pode ser enviado para sistema de auditoria)
       console.warn(`[Auth] Failed login attempt for ${email} from ${ip}`);
 
       return NextResponse.json(
@@ -53,7 +53,7 @@ export async function POST(request: Request) {
     const response = NextResponse.json({
       success: true,
       user: {
-        userId: data.user.userId,
+        userId: data.user.id || data.user.userId,
         email: data.user.email,
         role: data.user.role,
         fullName: data.user.fullName,
@@ -74,7 +74,7 @@ export async function POST(request: Request) {
     const metadata = {
       loginAt: new Date().toISOString(),
       rememberMe: !!rememberMe,
-      userAgent: userAgent.substring(0, 200), // Limitar tamanho
+      userAgent: userAgent.substring(0, 200),
     };
 
     response.cookies.set('cspace_session_meta', JSON.stringify(metadata), {
@@ -85,14 +85,13 @@ export async function POST(request: Request) {
       maxAge,
     });
 
-    // Log de sucesso
     console.info(`[Auth] Successful login for ${email} from ${ip}`);
 
     return response;
-  } catch (err) {
-    console.error('[Login API]', err);
+  } catch (err: any) {
+    console.error('[Login API Error]', err);
     return NextResponse.json(
-      { error: 'Não foi possível conectar ao servidor de autenticação.' },
+      { error: `Erro de conexão com o servidor de autenticação (${API_URL}): ${err?.message || 'Servidor indisponível'}` },
       { status: 503 }
     );
   }
