@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useUI } from '@/components/ui-provider';
 
-const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL || 'http://localhost:3001';
+const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL || process.env.NEXT_PUBLIC_API_URL || 'https://cspace-whatsapp-bot.onrender.com';
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 interface MenuItem {

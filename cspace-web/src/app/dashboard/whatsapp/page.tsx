@@ -12,7 +12,7 @@ interface WhatsAppSession {
   last_connected_at?: string;
 }
 
-const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL || 'http://localhost:3001';
+const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL || process.env.NEXT_PUBLIC_API_URL || 'https://cspace-whatsapp-bot.onrender.com';
 
 // ─── Modal: Criar Nova Sessão ─────────────────────────────────────────────────
 function CreateSessionModal({
