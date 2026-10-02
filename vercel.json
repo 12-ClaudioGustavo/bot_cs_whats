@@ -1,0 +1,5 @@
+{
+  "framework": "nextjs",
+  "buildCommand": "cd cspace-web && npm run build",
+  "outputDirectory": "cspace-web/.next"
+}
