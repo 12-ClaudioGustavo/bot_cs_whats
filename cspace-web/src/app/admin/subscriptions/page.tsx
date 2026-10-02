@@ -67,12 +67,12 @@ export default function SubscriptionsManagementPage() {
   const loadPlans = async () => {
     try {
       setPlansLoading(true);
-      const res = await fetch('http://localhost:3001/api/admin/plans', {
-        credentials: 'include',
-      });
+      const res = await fetch('/api/admin/plans');
+      const data = await res.json().catch(() => []);
       if (res.ok) {
-        const data = await res.json();
-        setPlans(data);
+        setPlans(Array.isArray(data) ? data : []);
+      } else {
+        setError(data.error || 'Erro ao carregar planos.');
       }
     } catch (_) {
       setError('Erro ao carregar planos.');
@@ -85,12 +85,12 @@ export default function SubscriptionsManagementPage() {
   const loadSubscriptions = async () => {
     try {
       setSubsLoading(true);
-      const res = await fetch('http://localhost:3001/api/admin/subscriptions', {
-        credentials: 'include',
-      });
+      const res = await fetch('/api/admin/subscriptions');
+      const data = await res.json().catch(() => []);
       if (res.ok) {
-        const data = await res.json();
-        setSubscriptions(data);
+        setSubscriptions(Array.isArray(data) ? data : []);
+      } else {
+        setError(data.error || 'Erro ao carregar subscrições.');
       }
     } catch (_) {
       setError('Erro ao carregar subscrições.');
@@ -141,14 +141,13 @@ export default function SubscriptionsManagementPage() {
 
     try {
       const url = editingPlan
-        ? `http://localhost:3001/api/admin/plans/${editingPlan.id}`
-        : 'http://localhost:3001/api/admin/plans';
+        ? `/api/admin/plans/${editingPlan.id}`
+        : '/api/admin/plans';
       const method = editingPlan ? 'PUT' : 'POST';
 
       const res = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify(formData),
       });
 
@@ -176,9 +175,8 @@ export default function SubscriptionsManagementPage() {
       onConfirm: () => {
         (async () => {
           try {
-            const res = await fetch(`http://localhost:3001/api/admin/plans/${id}`, {
+            const res = await fetch(`/api/admin/plans/${id}`, {
               method: 'DELETE',
-              credentials: 'include',
             });
             if (res.ok) {
               setMessage('Plano eliminado com sucesso!');
@@ -204,10 +202,9 @@ export default function SubscriptionsManagementPage() {
     if (!assignModal.planCode) return;
 
     try {
-      const res = await fetch('http://localhost:3001/api/admin/subscriptions/assign', {
+      const res = await fetch('/api/admin/subscriptions/assign', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({ tenantId: assignModal.tenantId, planCode: assignModal.planCode.toLowerCase().trim() }),
       });
 

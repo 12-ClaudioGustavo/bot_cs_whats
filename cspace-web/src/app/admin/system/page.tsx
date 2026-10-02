@@ -19,7 +19,7 @@ export default function SystemHealthPage() {
 
   const checkHealth = async () => {
     try {
-      const res = await fetch('http://localhost:3001/health');
+      const res = await fetch('/api/health');
       if (res.ok) {
         const data = await res.json();
         setHealth(data);

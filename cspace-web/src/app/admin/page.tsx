@@ -20,9 +20,7 @@ export default function SuperAdminOverviewPage() {
   useEffect(() => {
     async function loadAdminStats() {
       try {
-        const res = await fetch('http://localhost:3001/api/admin/stats', {
-          credentials: 'include',
-        });
+        const res = await fetch('/api/admin/stats');
         if (res.ok) {
           const data = await res.json();
           setStats(data);

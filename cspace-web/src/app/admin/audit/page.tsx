@@ -27,13 +27,12 @@ export default function AuditLogsPage() {
   const loadAuditLogs = async (category = selectedCategory) => {
     try {
       setLoading(true);
-      const url = `http://localhost:3001/api/admin/audit?category=${category}&limit=100`;
-      const res = await fetch(url, {
-        credentials: 'include',
-      });
+      const catParam = category !== 'all' ? `?category=${category}` : '';
+      const url = `/api/admin/audit${catParam}&limit=100`;
+      const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
-        setLogs(data);
+        setLogs(Array.isArray(data) ? data : []);
       }
     } catch (_) {
     } finally {
