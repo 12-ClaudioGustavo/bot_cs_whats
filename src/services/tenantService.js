@@ -11,20 +11,44 @@ async function getAllTenants() {
   if (!db) return [];
 
   try {
-    const { data, error } = await db
+    const { data: tenants, error } = await db
       .from('tenants')
       .select(`
         *,
+        tenant_users (id, email, full_name, role, is_active, phone),
         subscriptions (
           status,
+          current_period_start,
           current_period_end,
-          plans (name, code, monthly_message_limit, max_whatsapp_accounts, max_users)
+          plans (name, code, price, monthly_message_limit, max_whatsapp_accounts, max_users)
         )
       `)
       .order('created_at', { ascending: false });
 
     if (error) throw error;
-    return data || [];
+
+    const monthYear = new Date().toISOString().slice(0, 7);
+    const result = await Promise.all(
+      (tenants || []).map(async (t) => {
+        try {
+          const { count: clientsCount } = await db.from('clients').select('id', { count: 'exact', head: true }).eq('tenant_id', t.id);
+          const { data: usageLog } = await db.from('usage_logs').select('messages_sent, messages_received').eq('tenant_id', t.id).eq('month_year', monthYear).maybeSingle();
+          const { data: waSession } = await db.from('whatsapp_sessions').select('session_name, status, phone_number, last_connected_at').eq('tenant_id', t.id).maybeSingle();
+
+          return {
+            ...t,
+            clients_count: clientsCount || 0,
+            messages_used: usageLog?.messages_sent || 0,
+            messages_received: usageLog?.messages_received || 0,
+            whatsapp_session: waSession || null,
+          };
+        } catch (_) {
+          return t;
+        }
+      })
+    );
+
+    return result;
   } catch (err) {
     logger.error(`Erro ao buscar tenants: ${err.message}`);
     return [];
